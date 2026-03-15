@@ -17,19 +17,19 @@ export const createTask = async (req: any, res: Response) => {
 export const updateTask = async (req: Request, res: Response) => {
   const { title } = req.body;
 
-  const task = await taskService.updateTask(req.params.id, title);
+  const task = await taskService.updateTask(req.params.id as string, title);
 
   res.json(task);
 };
 
 export const deleteTask = async (req: Request, res: Response) => {
-  await taskService.deleteTask(req.params.id);
+  await taskService.deleteTask(req.params.id as string);
 
   res.json({ message: "Task deleted" });
 };
 
 export const toggleTask = async (req: Request, res: Response) => {
-  const task = await taskService.toggleTask(req.params.id);
+  const task = await taskService.toggleTask(req.params.id as string);
 
   res.json(task);
 };
