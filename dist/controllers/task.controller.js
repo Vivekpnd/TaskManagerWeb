@@ -1,64 +1,142 @@
 "use strict";
-var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    var desc = Object.getOwnPropertyDescriptor(m, k);
-    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
-      desc = { enumerable: true, get: function() { return m[k]; } };
-    }
-    Object.defineProperty(o, k2, desc);
-}) : (function(o, m, k, k2) {
-    if (k2 === undefined) k2 = k;
-    o[k2] = m[k];
-}));
-var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
-    Object.defineProperty(o, "default", { enumerable: true, value: v });
-}) : function(o, v) {
-    o["default"] = v;
-});
-var __importStar = (this && this.__importStar) || (function () {
-    var ownKeys = function(o) {
-        ownKeys = Object.getOwnPropertyNames || function (o) {
-            var ar = [];
-            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
-            return ar;
-        };
-        return ownKeys(o);
-    };
-    return function (mod) {
-        if (mod && mod.__esModule) return mod;
-        var result = {};
-        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
-        __setModuleDefault(result, mod);
-        return result;
-    };
-})();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toggleTask = exports.deleteTask = exports.updateTask = exports.createTask = exports.getTasks = void 0;
-const taskService = __importStar(require("../services/task.service"));
-const getTasks = async (req, res) => {
-    const tasks = await taskService.getUserTasks(req.user.userId);
-    res.json(tasks);
-};
-exports.getTasks = getTasks;
+exports.toggleTask = exports.deleteTask = exports.updateTask = exports.getTasks = exports.createTask = void 0;
+const prismaClient_1 = require("../prisma/prismaClient");
+/* ================= CREATE TASK ================= */
 const createTask = async (req, res) => {
-    const { title } = req.body;
-    const task = await taskService.createTask(req.user.userId, title);
-    res.json(task);
+    try {
+        const { title } = req.body;
+        if (!title) {
+            return res.status(400).json({ message: "Title is required" });
+        }
+        const task = await prismaClient_1.prisma.task.create({
+            data: {
+                title,
+                userId: req.userId
+            }
+        });
+        res.status(201).json(task);
+    }
+    catch (error) {
+        res.status(500).json({ message: "Error creating task" });
+    }
 };
 exports.createTask = createTask;
+/* ================= GET TASKS ================= */
+const getTasks = async (req, res) => {
+    try {
+        const page = Number(req.query.page) || 1;
+        const limit = Number(req.query.limit) || 10;
+        const status = req.query.status;
+        const search = req.query.search;
+        const skip = (page - 1) * limit;
+        const tasks = await prismaClient_1.prisma.task.findMany({
+            where: {
+                userId: req.userId,
+                ...(status !== undefined && {
+                    status: status === "true"
+                }),
+                ...(search && {
+                    title: {
+                        contains: search,
+                        mode: "insensitive"
+                    }
+                })
+            },
+            skip,
+            take: limit,
+            orderBy: {
+                createdAt: "desc"
+            }
+        });
+        const total = await prismaClient_1.prisma.task.count({
+            where: {
+                userId: req.userId
+            }
+        });
+        res.json({
+            tasks,
+            total,
+            page,
+            totalPages: Math.ceil(total / limit)
+        });
+    }
+    catch (error) {
+        res.status(500).json({ message: "Error fetching tasks" });
+    }
+};
+exports.getTasks = getTasks;
+/* ================= UPDATE TASK ================= */
 const updateTask = async (req, res) => {
-    const { title } = req.body;
-    const task = await taskService.updateTask(req.params.id, title);
-    res.json(task);
+    try {
+        const id = req.params.id;
+        const { title } = req.body;
+        const task = await prismaClient_1.prisma.task.findFirst({
+            where: {
+                id,
+                userId: req.userId
+            }
+        });
+        if (!task) {
+            return res.status(404).json({ message: "Task not found" });
+        }
+        const updatedTask = await prismaClient_1.prisma.task.update({
+            where: { id },
+            data: { title }
+        });
+        res.json(updatedTask);
+    }
+    catch (error) {
+        res.status(500).json({ message: "Error updating task" });
+    }
 };
 exports.updateTask = updateTask;
+/* ================= DELETE TASK ================= */
 const deleteTask = async (req, res) => {
-    await taskService.deleteTask(req.params.id);
-    res.json({ message: "Task deleted" });
+    try {
+        const id = req.params.id;
+        const task = await prismaClient_1.prisma.task.findFirst({
+            where: {
+                id,
+                userId: req.userId
+            }
+        });
+        if (!task) {
+            return res.status(404).json({ message: "Task not found" });
+        }
+        await prismaClient_1.prisma.task.delete({
+            where: { id }
+        });
+        res.json({ message: "Task deleted successfully" });
+    }
+    catch (error) {
+        res.status(500).json({ message: "Error deleting task" });
+    }
 };
 exports.deleteTask = deleteTask;
+/* ================= TOGGLE TASK ================= */
 const toggleTask = async (req, res) => {
-    const task = await taskService.toggleTask(req.params.id);
-    res.json(task);
+    try {
+        const id = req.params.id;
+        const task = await prismaClient_1.prisma.task.findFirst({
+            where: {
+                id,
+                userId: req.userId
+            }
+        });
+        if (!task) {
+            return res.status(404).json({ message: "Task not found" });
+        }
+        const updatedTask = await prismaClient_1.prisma.task.update({
+            where: { id },
+            data: {
+                status: !task.status
+            }
+        });
+        res.json(updatedTask);
+    }
+    catch (error) {
+        res.status(500).json({ message: "Error toggling task status" });
+    }
 };
 exports.toggleTask = toggleTask;

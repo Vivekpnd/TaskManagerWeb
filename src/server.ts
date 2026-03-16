@@ -3,7 +3,7 @@ import cors from "cors";
 import dotenv from "dotenv";
 
 import authRoutes from "./routes/auth.routes";
-import taskRoutes from "./routes/task.routes";
+import taskRoutes from "./routes/taskRoutes";
 
 dotenv.config();
 
