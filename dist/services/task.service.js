@@ -1,42 +1,57 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.toggleTask = exports.deleteTask = exports.updateTask = exports.createTask = exports.getUserTasks = void 0;
-const prisma_1 = require("../prisma");
-const getUserTasks = (userId) => {
-    return prisma_1.prisma.task.findMany({
-        where: { userId },
-    });
-};
-exports.getUserTasks = getUserTasks;
-const createTask = (userId, title) => {
-    return prisma_1.prisma.task.create({
+exports.toggleTaskService = exports.deleteTaskService = exports.getTasksService = exports.createTaskService = void 0;
+const prismaClient_1 = require("../prisma/prismaClient");
+const createTaskService = async (title, userId) => {
+    return prismaClient_1.prisma.task.create({
         data: {
             title,
             userId,
+            assignedById: userId,
         },
     });
 };
-exports.createTask = createTask;
-const updateTask = (id, title) => {
-    return prisma_1.prisma.task.update({
-        where: { id },
-        data: { title },
+exports.createTaskService = createTaskService;
+const getTasksService = async (userId) => {
+    return prismaClient_1.prisma.task.findMany({
+        where: { userId },
+        orderBy: { createdAt: "desc" },
     });
 };
-exports.updateTask = updateTask;
-const deleteTask = (id) => {
-    return prisma_1.prisma.task.delete({
+exports.getTasksService = getTasksService;
+const deleteTaskService = async (id, userId) => {
+    const task = await prismaClient_1.prisma.task.findFirst({
+        where: {
+            id,
+            userId,
+        },
+    });
+    if (!task) {
+        throw new Error("Task not found");
+    }
+    return prismaClient_1.prisma.task.delete({
         where: { id },
     });
 };
-exports.deleteTask = deleteTask;
-const toggleTask = async (id) => {
-    const task = await prisma_1.prisma.task.findUnique({
-        where: { id },
+exports.deleteTaskService = deleteTaskService;
+const toggleTaskService = async (id, userId) => {
+    const task = await prismaClient_1.prisma.task.findFirst({
+        where: {
+            id,
+            userId,
+        },
     });
-    return prisma_1.prisma.task.update({
+    if (!task) {
+        throw new Error("Task not found");
+    }
+    const nextStatus = task.status === "pending"
+        ? "in-progress"
+        : task.status === "in-progress"
+            ? "completed"
+            : "pending";
+    return prismaClient_1.prisma.task.update({
         where: { id },
-        data: { status: !task?.status },
+        data: { status: nextStatus },
     });
 };
-exports.toggleTask = toggleTask;
+exports.toggleTaskService = toggleTaskService;

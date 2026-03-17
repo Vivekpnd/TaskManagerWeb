@@ -2,141 +2,153 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.toggleTask = exports.deleteTask = exports.updateTask = exports.getTasks = exports.createTask = void 0;
 const prismaClient_1 = require("../prisma/prismaClient");
-/* ================= CREATE TASK ================= */
+/* CREATE TASK */
 const createTask = async (req, res) => {
     try {
-        const { title } = req.body;
+        const { title, description, priority, dueDate } = req.body;
+        const userId = req.userId;
         if (!title) {
             return res.status(400).json({ message: "Title is required" });
         }
         const task = await prismaClient_1.prisma.task.create({
             data: {
                 title,
-                userId: req.userId
-            }
+                description,
+                priority,
+                dueDate: dueDate ? new Date(dueDate) : null,
+                userId,
+                assignedById: userId,
+            },
         });
-        res.status(201).json(task);
+        return res.status(201).json(task);
     }
     catch (error) {
-        res.status(500).json({ message: "Error creating task" });
+        console.error(error);
+        return res.status(500).json({ message: "Error creating task" });
     }
 };
 exports.createTask = createTask;
-/* ================= GET TASKS ================= */
+/* GET TASKS */
 const getTasks = async (req, res) => {
     try {
+        const userId = req.userId;
         const page = Number(req.query.page) || 1;
         const limit = Number(req.query.limit) || 10;
-        const status = req.query.status;
         const search = req.query.search;
+        const status = req.query.status;
+        const priority = req.query.priority;
         const skip = (page - 1) * limit;
-        const tasks = await prismaClient_1.prisma.task.findMany({
-            where: {
-                userId: req.userId,
-                ...(status !== undefined && {
-                    status: status === "true"
-                }),
-                ...(search && {
-                    title: {
-                        contains: search,
-                        mode: "insensitive"
-                    }
-                })
-            },
-            skip,
-            take: limit,
-            orderBy: {
-                createdAt: "desc"
-            }
-        });
-        const total = await prismaClient_1.prisma.task.count({
-            where: {
-                userId: req.userId
-            }
-        });
-        res.json({
+        const where = {
+            userId,
+            ...(status && { status }),
+            ...(priority && { priority }),
+            ...(search && {
+                title: {
+                    contains: search,
+                    mode: "insensitive",
+                },
+            }),
+        };
+        const [tasks, total] = await Promise.all([
+            prismaClient_1.prisma.task.findMany({
+                where,
+                skip,
+                take: limit,
+                orderBy: { createdAt: "desc" },
+            }),
+            prismaClient_1.prisma.task.count({ where }),
+        ]);
+        return res.json({
             tasks,
             total,
             page,
-            totalPages: Math.ceil(total / limit)
+            totalPages: Math.ceil(total / limit),
         });
     }
     catch (error) {
-        res.status(500).json({ message: "Error fetching tasks" });
+        console.error(error);
+        return res.status(500).json({ message: "Error fetching tasks" });
     }
 };
 exports.getTasks = getTasks;
-/* ================= UPDATE TASK ================= */
+/* UPDATE TASK */
 const updateTask = async (req, res) => {
     try {
         const id = req.params.id;
-        const { title } = req.body;
+        const userId = req.userId;
         const task = await prismaClient_1.prisma.task.findFirst({
-            where: {
-                id,
-                userId: req.userId
-            }
+            where: { id, userId },
         });
         if (!task) {
             return res.status(404).json({ message: "Task not found" });
         }
-        const updatedTask = await prismaClient_1.prisma.task.update({
+        const updated = await prismaClient_1.prisma.task.update({
             where: { id },
-            data: { title }
+            data: {
+                title: req.body.title,
+                description: req.body.description,
+                priority: req.body.priority,
+                status: req.body.status,
+                dueDate: req.body.dueDate
+                    ? new Date(req.body.dueDate)
+                    : undefined,
+            },
         });
-        res.json(updatedTask);
+        return res.json(updated);
     }
     catch (error) {
-        res.status(500).json({ message: "Error updating task" });
+        console.error(error);
+        return res.status(500).json({ message: "Error updating task" });
     }
 };
 exports.updateTask = updateTask;
-/* ================= DELETE TASK ================= */
+/* DELETE TASK */
 const deleteTask = async (req, res) => {
     try {
         const id = req.params.id;
+        const userId = req.userId;
         const task = await prismaClient_1.prisma.task.findFirst({
-            where: {
-                id,
-                userId: req.userId
-            }
+            where: { id, userId },
         });
         if (!task) {
             return res.status(404).json({ message: "Task not found" });
         }
         await prismaClient_1.prisma.task.delete({
-            where: { id }
+            where: { id },
         });
-        res.json({ message: "Task deleted successfully" });
+        return res.json({ message: "Task deleted" });
     }
     catch (error) {
-        res.status(500).json({ message: "Error deleting task" });
+        console.error(error);
+        return res.status(500).json({ message: "Error deleting task" });
     }
 };
 exports.deleteTask = deleteTask;
-/* ================= TOGGLE TASK ================= */
+/* TOGGLE TASK */
 const toggleTask = async (req, res) => {
     try {
         const id = req.params.id;
+        const userId = req.userId;
         const task = await prismaClient_1.prisma.task.findFirst({
-            where: {
-                id,
-                userId: req.userId
-            }
+            where: { id, userId },
         });
         if (!task) {
             return res.status(404).json({ message: "Task not found" });
         }
-        const updatedTask = await prismaClient_1.prisma.task.update({
+        const nextStatus = task.status === "pending"
+            ? "in-progress"
+            : task.status === "in-progress"
+                ? "completed"
+                : "pending";
+        const updated = await prismaClient_1.prisma.task.update({
             where: { id },
-            data: {
-                status: !task.status
-            }
+            data: { status: nextStatus },
         });
-        res.json(updatedTask);
+        return res.json(updated);
     }
     catch (error) {
-        res.status(500).json({ message: "Error toggling task status" });
+        console.error(error);
+        return res.status(500).json({ message: "Error toggling task" });
     }
 };
 exports.toggleTask = toggleTask;

@@ -8,20 +8,37 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid())
-  email        String   @unique
-  password     String
-  refreshToken String?  
-  tasks        Task[]
-  createdAt    DateTime @default(now())
+  id       String @id @default(uuid())
+  email    String @unique
+  password String
+
+  name    String?
+  phone   String?
+  address String?
+  avatar  String?
+
+  refreshToken String?
+
+  tasks      Task[] @relation("AssignedTo")
+  assignedBy Task[] @relation("AssignedBy")
+
+  createdAt DateTime @default(now())
 }
 
 model Task {
-  id          String   @id @default(uuid())
+  id          String  @id @default(uuid())
   title       String
   description String?
-  status      Boolean  @default(false)
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  createdAt   DateTime @default(now())
+  priority    String? // low, medium, high
+  status      String  @default("pending")
+
+  dueDate DateTime?
+
+  userId String
+  user   User   @relation("AssignedTo", fields: [userId], references: [id])
+
+  assignedById String
+  assignedBy   User   @relation("AssignedBy", fields: [assignedById], references: [id])
+
+  createdAt DateTime @default(now())
 }
